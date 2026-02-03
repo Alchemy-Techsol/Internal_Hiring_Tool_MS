@@ -32,7 +32,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5000
-      DB_HOST: postgres
+      DB_HOST: vendor-management-db
       DB_PORT: 5432
       DB_NAME: internal_hiring
       DB_USER: ${DB_USER:-postgres}
