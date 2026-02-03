@@ -99,9 +99,9 @@ services:
       dockerfile: docker/Dockerfile.nginx
     container_name: internal-hiring-frontend
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
+    # ports:
+    #   - "80:80"
+    #   - "443:443"
     depends_on:
       - backend
     networks:
