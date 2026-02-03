@@ -20,6 +20,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - vendor_nginx_net
 
   backend:
     build:
@@ -41,6 +43,8 @@ services:
         condition: service_healthy
     ports:
       - "5000:5000"
+    networks:
+      - vendor_nginx_net
 
   nginx:
     build:
@@ -53,6 +57,13 @@ services:
       - "443:443"
     depends_on:
       - backend
+    networks:
+      - vendor_nginx_net
 
 volumes:
   postgres_data:
+
+networks:
+  vendor_nginx_net:
+    external: true
+    name: vendor-management-tool_vendor-network
