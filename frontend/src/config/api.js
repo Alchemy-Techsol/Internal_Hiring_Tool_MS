@@ -1,6 +1,6 @@
 // API Configuration
 const API_CONFIG = {
-  BASE_URL: process.env.REACT_APP_API_BASE_URL ?? (process.env.NODE_ENV === 'production' ? '/internal-hiring/api' : 'http://localhost:5011'),
+  BASE_URL: process.env.REACT_APP_API_BASE_URL ?? (process.env.NODE_ENV === 'production' ? '/internal-hiring' : 'http://localhost:5011'),
   TIMEOUT: 10000,
   HEADERS: {
     'Content-Type': 'application/json',
