@@ -1,0 +1,101 @@
+.show-team-budget-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1001;
+}
+
+.show-team-budget-modal {
+  background-color: white;
+  border-radius: 8px;
+  width: 95%;
+  max-width: 900px;
+  max-height: 85vh;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.show-team-budget-modal .modal-header {
+  padding: 16px 20px;
+  background-color: #2c3e50;
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.show-team-budget-modal .modal-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.show-team-budget-modal .close-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.show-team-budget-modal .modal-body {
+  padding: 20px;
+  overflow: auto;
+}
+
+.budget-table-wrapper {
+  overflow-x: visible;
+  width: 100%;
+}
+
+.budget-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.budget-table th,
+.budget-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.budget-table th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.budget-table tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+.budget-table .total-row {
+  background-color: #e8f5e9;
+  font-weight: 600;
+}
+
+.budget-table .total-row td {
+  border-top: 2px solid #4caf50;
+  padding-top: 14px;
+}
+
+.budget-table .no-data {
+  text-align: center;
+  color: #777;
+  padding: 24px;
+}
+
+.loading-text {
+  text-align: center;
+  padding: 24px;
+  color: #666;
+}
