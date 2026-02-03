@@ -11,6 +11,10 @@ const PORT = process.env.PORT || 5011;
 const allowedOrigins = [
   'http://localhost:3011',
   'http://127.0.0.1:3011',
+  'https://q9lab.in',
+  'https://www.q9lab.in',
+  `https://q9lab.in/internal-hiring/`,
+  `https://www.q9lab.in/internal-hiring/`,
   process.env.FRONTEND_URL
 ].filter(Boolean);
 
