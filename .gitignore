@@ -80,10 +80,6 @@ dist
 
 # Gatsby files
 .cache/
-public
-# Allow frontend public folder (CRA needs index.html, favicon, etc.)
-!Internal Recruitement App/frontend/public
-!Internal Recruitement App/frontend/public/**
 
 # Storybook build outputs
 .out
