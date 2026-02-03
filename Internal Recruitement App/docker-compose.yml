@@ -32,7 +32,7 @@ services:
       PORT: 5000
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: Internal_Hiring
+      DB_NAME: internal_hiring
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost}

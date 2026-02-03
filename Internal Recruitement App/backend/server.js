@@ -39,8 +39,8 @@ app.use(bodyParser.json());
 const poolConfig = {
   user: process.env.DB_USER || 'postgres',
   host: process.env.DB_HOST || 'localhost',
-  database: process.env.DB_NAME || 'Internal_Hiring',
-  password: process.env.DB_PASSWORD || 'Postgres0607@', // Add default password
+  database: process.env.DB_NAME || 'internal_hiring',
+  password: process.env.DB_PASSWORD || 'sree', // Add default password
   port: process.env.DB_PORT || 5432,
   connectionTimeoutMillis: 5000
 };
@@ -59,7 +59,7 @@ pool.query('SELECT NOW()', (err, res) => {
 
 
 // Signup Endpoint
-app.post("/signup", async (req, res) => {
+app.post("/api/signup", async (req, res) => {
   try {
     const { name, email, password, designation, business_unit } = req.body;
 
@@ -68,10 +68,10 @@ app.post("/signup", async (req, res) => {
     }
 
     const userExists = await pool.query(
-      'SELECT * FROM "Users" WHERE email = $1', 
+      'SELECT * FROM "Users" WHERE email = $1',
       [email]
     );
-    
+
     if (userExists.rows.length > 0) {
       return res.status(409).json({ error: "Email already exists" });
     }
@@ -90,7 +90,7 @@ app.post("/signup", async (req, res) => {
 
   } catch (error) {
     console.error("Signup error:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Internal server error",
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -98,7 +98,7 @@ app.post("/signup", async (req, res) => {
 });
 
 // Login Endpoint
-app.post("/login", async (req, res) => {
+app.post("/api/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -154,8 +154,8 @@ app.post('/api/new-hiring-approvals', async (req, res) => {
     } = req.body;
 
     // Convert candidate_skills to array if it's a string
-    const skillsArray = Array.isArray(candidate_skills) 
-      ? candidate_skills 
+    const skillsArray = Array.isArray(candidate_skills)
+      ? candidate_skills
       : candidate_skills ? candidate_skills.split(',').map(skill => skill.trim()) : [];
 
     // When BU Head submits, automatically set bu_head_approved = true
@@ -192,14 +192,14 @@ app.post('/api/new-hiring-approvals', async (req, res) => {
 app.get('/api/approvals/sent/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     const result = await pool.query(
       `SELECT * FROM "NewHiringApprovals" 
        WHERE hiring_manager_id = $1 
        ORDER BY created_at DESC`,
       [userId]
     );
-    
+
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching sent approvals:', error);
@@ -211,21 +211,21 @@ app.get('/api/approvals/sent/:userId', async (req, res) => {
 app.get('/api/approvals/received/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     // Get user details to check their role
     const userResult = await pool.query(
       'SELECT designation, business_unit FROM "Users" WHERE id = $1',
       [userId]
     );
-    
+
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     const user = userResult.rows[0];
     let query;
     let params;
-    
+
     if (user.designation === 'Admin') {
       // Admins can see all pending approvals where both BU Head and HR Head have approved
       query = `SELECT * FROM "NewHiringApprovals" 
@@ -251,7 +251,7 @@ app.get('/api/approvals/received/:userId', async (req, res) => {
                ORDER BY created_at DESC`;
       params = [user.business_unit];
     }
-    
+
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
@@ -265,21 +265,21 @@ app.put('/api/approvals/:id/approve', async (req, res) => {
   try {
     const { id } = req.params;
     const { approved_by, comments } = req.body;
-    
+
     // Get user details to determine their role
     const userResult = await pool.query(
       'SELECT designation FROM "Users" WHERE id = $1',
       [approved_by]
     );
-    
+
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     const userRole = userResult.rows[0].designation;
     let updateQuery;
     let updateParams;
-    
+
     if (userRole === 'BU Head') {
       // BU Head approval is now automatic when submitting
       // This should not be called anymore, but keeping for backward compatibility
@@ -302,13 +302,13 @@ app.put('/api/approvals/:id/approve', async (req, res) => {
     } else {
       return res.status(403).json({ error: 'Unauthorized to approve requests' });
     }
-    
+
     const result = await pool.query(updateQuery, updateParams);
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Approval request not found' });
     }
-    
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error approving request:', error);
@@ -321,21 +321,21 @@ app.put('/api/approvals/:id/reject', async (req, res) => {
   try {
     const { id } = req.params;
     const { rejected_by, rejection_reason, comments } = req.body;
-    
+
     // Get user details to determine their role
     const userResult = await pool.query(
       'SELECT designation FROM "Users" WHERE id = $1',
       [rejected_by]
     );
-    
+
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     const userRole = userResult.rows[0].designation;
     let updateQuery;
     let updateParams;
-    
+
     if (userRole === 'BU Head') {
       updateQuery = `UPDATE "NewHiringApprovals" 
                      SET approval_status = 'Rejected', bu_head_comments = $1, rejection_reason = $2
@@ -357,13 +357,13 @@ app.put('/api/approvals/:id/reject', async (req, res) => {
     } else {
       return res.status(403).json({ error: 'Unauthorized to reject requests' });
     }
-    
+
     const result = await pool.query(updateQuery, updateParams);
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Approval request not found' });
     }
-    
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error rejecting request:', error);
@@ -395,8 +395,8 @@ app.post('/api/replacement-approvals', async (req, res) => {
     } = req.body;
 
     // Convert replacement_skills to array if it's a string
-    const skillsArray = Array.isArray(replacement_skills) 
-      ? replacement_skills 
+    const skillsArray = Array.isArray(replacement_skills)
+      ? replacement_skills
       : replacement_skills ? replacement_skills.split(',').map(skill => skill.trim()) : [];
 
     // When BU Head submits, automatically set bu_head_approved = true
@@ -425,7 +425,7 @@ app.post('/api/replacement-approvals', async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error creating replacement approval:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Internal server error',
       details: error.message,
       stack: error.stack
@@ -437,14 +437,14 @@ app.post('/api/replacement-approvals', async (req, res) => {
 app.get('/api/replacement-approvals/sent/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     const result = await pool.query(
       `SELECT * FROM "ReplacementApprovals" 
        WHERE hiring_manager_id = $1 
        ORDER BY created_at DESC`,
       [userId]
     );
-    
+
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching sent replacement approvals:', error);
@@ -456,21 +456,21 @@ app.get('/api/replacement-approvals/sent/:userId', async (req, res) => {
 app.get('/api/replacement-approvals/received/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     // Get user details to check their role
     const userResult = await pool.query(
       'SELECT designation, business_unit FROM "Users" WHERE id = $1',
       [userId]
     );
-    
+
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     const user = userResult.rows[0];
     let query;
     let params;
-    
+
     if (user.designation === 'Admin') {
       // Admins can see all pending approvals where both BU Head and HR Head have approved
       query = `SELECT * FROM "ReplacementApprovals" 
@@ -496,7 +496,7 @@ app.get('/api/replacement-approvals/received/:userId', async (req, res) => {
                ORDER BY created_at DESC`;
       params = [user.business_unit];
     }
-    
+
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
@@ -510,21 +510,21 @@ app.put('/api/replacement-approvals/:id/approve', async (req, res) => {
   try {
     const { id } = req.params;
     const { approved_by, comments } = req.body;
-    
+
     // Get user details to determine their role
     const userResult = await pool.query(
       'SELECT designation FROM "Users" WHERE id = $1',
       [approved_by]
     );
-    
+
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     const userRole = userResult.rows[0].designation;
     let updateQuery;
     let updateParams;
-    
+
     if (userRole === 'BU Head') {
       // BU Head approval is now automatic when submitting
       // This should not be called anymore, but keeping for backward compatibility
@@ -547,13 +547,13 @@ app.put('/api/replacement-approvals/:id/approve', async (req, res) => {
     } else {
       return res.status(403).json({ error: 'Unauthorized to approve requests' });
     }
-    
+
     const result = await pool.query(updateQuery, updateParams);
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Approval request not found' });
     }
-    
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error approving replacement request:', error);
@@ -566,21 +566,21 @@ app.put('/api/replacement-approvals/:id/reject', async (req, res) => {
   try {
     const { id } = req.params;
     const { rejected_by, rejection_reason, comments } = req.body;
-    
+
     // Get user details to determine their role
     const userResult = await pool.query(
       'SELECT designation FROM "Users" WHERE id = $1',
       [rejected_by]
     );
-    
+
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     const userRole = userResult.rows[0].designation;
     let updateQuery;
     let updateParams;
-    
+
     if (userRole === 'BU Head') {
       updateQuery = `UPDATE "ReplacementApprovals" 
                      SET approval_status = 'Rejected', bu_head_comments = $1, rejection_reason = $2
@@ -602,13 +602,13 @@ app.put('/api/replacement-approvals/:id/reject', async (req, res) => {
     } else {
       return res.status(403).json({ error: 'Unauthorized to reject requests' });
     }
-    
+
     const result = await pool.query(updateQuery, updateParams);
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Approval request not found' });
     }
-    
+
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error rejecting replacement request:', error);
@@ -620,7 +620,7 @@ app.put('/api/replacement-approvals/:id/reject', async (req, res) => {
 app.get('/api/replacement-details/:businessUnit', async (req, res) => {
   try {
     const { businessUnit } = req.params;
-    
+
     const result = await pool.query(
       `SELECT 
         outgoing_employee_name,
@@ -653,7 +653,7 @@ app.get('/api/replacement-details/:businessUnit', async (req, res) => {
        ORDER BY created_at DESC`,
       [businessUnit]
     );
-    
+
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching replacement details:', error);
@@ -665,7 +665,7 @@ app.get('/api/replacement-details/:businessUnit', async (req, res) => {
 app.get('/api/existing-team-details/:businessUnit', async (req, res) => {
   try {
     const { businessUnit } = req.params;
-    
+
     const newHires = await pool.query(
       `SELECT 
         candidate_name,
@@ -681,7 +681,7 @@ app.get('/api/existing-team-details/:businessUnit', async (req, res) => {
        ORDER BY join_confirmation_date DESC`,
       [businessUnit]
     );
-    
+
     const replacements = await pool.query(
       `SELECT 
         replacement_candidate_name as candidate_name,
@@ -697,7 +697,7 @@ app.get('/api/existing-team-details/:businessUnit', async (req, res) => {
        ORDER BY join_confirmation_date DESC`,
       [businessUnit]
     );
-    
+
     const rows = [...newHires.rows, ...replacements.rows]
       .map(r => ({
         candidate_name: r.candidate_name,
@@ -707,7 +707,7 @@ app.get('/api/existing-team-details/:businessUnit', async (req, res) => {
         twenty_percent: ((r.exact_salary && r.exact_salary > 0) ? parseFloat(r.exact_salary) : parseFloat(r.ctc_offered || 0)) * 0.20
       }))
       .sort((a, b) => new Date(b.exact_join_date || 0) - new Date(a.exact_join_date || 0));
-    
+
     res.json(rows);
   } catch (error) {
     console.error('Error fetching existing team details:', error);
@@ -719,7 +719,7 @@ app.get('/api/existing-team-details/:businessUnit', async (req, res) => {
 app.get('/api/new-hire-details/:businessUnit', async (req, res) => {
   try {
     const { businessUnit } = req.params;
-    
+
     const result = await pool.query(
       `SELECT 
         position_title,
@@ -748,7 +748,7 @@ app.get('/api/new-hire-details/:businessUnit', async (req, res) => {
        ORDER BY created_at DESC`,
       [businessUnit]
     );
-    
+
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching new hire details:', error);
@@ -760,9 +760,9 @@ app.get('/api/new-hire-details/:businessUnit', async (req, res) => {
 app.get('/api/bu-metrics/:businessUnit/:userId', async (req, res) => {
   try {
     const { businessUnit, userId } = req.params;
-    
+
     console.log('🔍 BU Metrics Request:', { businessUnit, userId });
-    
+
     // Get hiring ticket raised (total number of new hiring and replacement requests submitted)
     // Only count requests that are still in the initial stage (not yet approved by HR Head)
     const newHireCountResult = await pool.query(
@@ -771,16 +771,16 @@ app.get('/api/bu-metrics/:businessUnit/:userId', async (req, res) => {
        AND (hr_head_approved = false OR hr_head_approved IS NULL)`,
       [businessUnit]
     );
-    
+
     const replacementCountResult = await pool.query(
       `SELECT COUNT(*) as count FROM "ReplacementApprovals" 
        WHERE business_unit = $1 
        AND (hr_head_approved = false OR hr_head_approved IS NULL)`,
       [businessUnit]
     );
-    
+
     const hiringTicketRaised = parseInt(newHireCountResult.rows[0].count) + parseInt(replacementCountResult.rows[0].count);
-    
+
     // Get approved yet to hire (requests approved by HR Head and Admin but not yet finalized)
     // Only count requests that are approved but BU Head hasn't entered tentative details yet
     const approvedYetToHireResult = await pool.query(
@@ -791,7 +791,7 @@ app.get('/api/bu-metrics/:businessUnit/:userId', async (req, res) => {
        AND (bu_head_tentative_entered = false OR bu_head_tentative_entered IS NULL)`,
       [businessUnit]
     );
-    
+
     // Get selected yet to offer (requests where BU Head has entered tentative details)
     // Only count requests where BU Head has entered tentative details but HR Head hasn't entered final details yet
     const selectedYetToOfferResult = await pool.query(
@@ -801,7 +801,7 @@ app.get('/api/bu-metrics/:businessUnit/:userId', async (req, res) => {
        AND (hr_head_final_entered = false OR hr_head_final_entered IS NULL)`,
       [businessUnit]
     );
-    
+
     // Get offered yet to join (requests where HR Head has entered final details but candidate hasn't joined yet)
     // Only count requests where HR Head has entered final details but HR Head hasn't confirmed join yet
     const offeredYetToJoinResult = await pool.query(
@@ -812,28 +812,28 @@ app.get('/api/bu-metrics/:businessUnit/:userId', async (req, res) => {
        AND exact_join_date <= CURRENT_DATE`,
       [businessUnit]
     );
-    
+
     // Get existing team (total number of joined candidates)
     const existingTeamResult = await pool.query(
       `SELECT COUNT(*) as count FROM "NewHiringApprovals" 
        WHERE business_unit = $1 AND (join_confirmation_status = 'Joined' OR join_confirmed = true)`,
       [businessUnit]
     );
-    
+
     // Get to be rationalized (total number of replaced candidates that haven't joined yet)
     const toBeRationalizedResult = await pool.query(
       `SELECT COUNT(*) as count FROM "ReplacementApprovals" 
        WHERE business_unit = $1 AND (join_confirmation_status IS NULL OR join_confirmation_status != 'Joined')`,
       [businessUnit]
     );
-    
+
     // Get team cost (sum of CTC from all confirmed joins in this BU)
     const teamCostResult = await pool.query(
       `SELECT COALESCE(SUM(ctc_offered), 0) as total_cost FROM "NewHiringApprovals" 
        WHERE business_unit = $1 AND join_confirmation_status = 'Joined'`,
       [businessUnit]
     );
-    
+
     console.log('📊 BU Metrics Results:', {
       hiringTicketRaised: hiringTicketRaised,
       approvedYetToHire: parseInt(approvedYetToHireResult.rows[0].count),
@@ -843,7 +843,7 @@ app.get('/api/bu-metrics/:businessUnit/:userId', async (req, res) => {
       toBeRationalized: parseInt(toBeRationalizedResult.rows[0].count),
       teamCost: parseFloat(teamCostResult.rows[0].total_cost) || 0
     });
-    
+
     res.json({
       hiringTicketRaised: hiringTicketRaised,
       approvedYetToHire: parseInt(approvedYetToHireResult.rows[0].count),
@@ -868,59 +868,59 @@ app.get('/api/hr/business-unit-stats', async (req, res) => {
        UNION 
        SELECT DISTINCT business_unit FROM "ReplacementApprovals" WHERE business_unit IS NOT NULL AND business_unit != ''`
     );
-    
+
     console.log('Found business units:', businessUnitsResult.rows);
-    
+
     const businessUnitStats = [];
-    
+
     for (const row of businessUnitsResult.rows) {
       const businessUnit = row.business_unit;
-      
-             // Get counts for NewHiringApprovals table
-       const newHireStats = await pool.query(
-         `SELECT 
+
+      // Get counts for NewHiringApprovals table
+      const newHireStats = await pool.query(
+        `SELECT 
             COUNT(*) FILTER (WHERE join_confirmation_status = 'Joined') as confirmed_count,
             COUNT(*) FILTER (WHERE approval_status = 'Pending') as pending_count,
             COUNT(*) FILTER (WHERE approval_status = 'Rejected') as rejected_count
           FROM "NewHiringApprovals" 
           WHERE business_unit = $1`,
-         [businessUnit]
-       );
-       
-       // Get counts for ReplacementApprovals table
-       const replacementStats = await pool.query(
-         `SELECT 
+        [businessUnit]
+      );
+
+      // Get counts for ReplacementApprovals table
+      const replacementStats = await pool.query(
+        `SELECT 
             COUNT(*) FILTER (WHERE join_confirmation_status = 'Joined') as confirmed_count,
             COUNT(*) FILTER (WHERE approval_status = 'Pending') as pending_count,
             COUNT(*) FILTER (WHERE approval_status = 'Rejected') as rejected_count
           FROM "ReplacementApprovals" 
           WHERE business_unit = $1`,
-         [businessUnit]
-       );
-       
-       const newHireConfirmed = parseInt(newHireStats.rows[0]?.confirmed_count || 0);
-       const newHirePending = parseInt(newHireStats.rows[0]?.pending_count || 0);
-       const replacementConfirmed = parseInt(replacementStats.rows[0]?.confirmed_count || 0);
-       const replacementPending = parseInt(replacementStats.rows[0]?.pending_count || 0);
-       
-       const totalHires = newHireConfirmed + replacementConfirmed;
-       const pendingRequests = newHirePending + replacementPending;
-       const confirmedRequests = newHireConfirmed + replacementConfirmed;
-      
-             businessUnitStats.push({
-         business_unit: businessUnit,
-         total_hires: totalHires,
-         pending_requests: pendingRequests,
-         confirmed_requests: confirmedRequests
-       });
-       
-       console.log(`Business Unit ${businessUnit}:`, {
-         totalHires,
-         pendingRequests,
-         confirmedRequests
-       });
+        [businessUnit]
+      );
+
+      const newHireConfirmed = parseInt(newHireStats.rows[0]?.confirmed_count || 0);
+      const newHirePending = parseInt(newHireStats.rows[0]?.pending_count || 0);
+      const replacementConfirmed = parseInt(replacementStats.rows[0]?.confirmed_count || 0);
+      const replacementPending = parseInt(replacementStats.rows[0]?.pending_count || 0);
+
+      const totalHires = newHireConfirmed + replacementConfirmed;
+      const pendingRequests = newHirePending + replacementPending;
+      const confirmedRequests = newHireConfirmed + replacementConfirmed;
+
+      businessUnitStats.push({
+        business_unit: businessUnit,
+        total_hires: totalHires,
+        pending_requests: pendingRequests,
+        confirmed_requests: confirmedRequests
+      });
+
+      console.log(`Business Unit ${businessUnit}:`, {
+        totalHires,
+        pendingRequests,
+        confirmedRequests
+      });
     }
-    
+
     console.log('Final business unit stats:', businessUnitStats);
     res.json(businessUnitStats);
   } catch (error) {
@@ -933,7 +933,7 @@ app.get('/api/hr/business-unit-stats', async (req, res) => {
 app.get('/api/notifications/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     // Get recently approved new hire and replacement requests
     const newHireResult = await pool.query(
       `SELECT id, candidate_name, position_title, 'new_hire' as type, updated_at 
@@ -944,7 +944,7 @@ app.get('/api/notifications/:userId', async (req, res) => {
        LIMIT 10`,
       [userId]
     );
-    
+
     const replacementResult = await pool.query(
       `SELECT id, replacement_candidate_name as candidate_name, 
               'Replacement for ' || outgoing_employee_name as position_title, 
@@ -956,11 +956,11 @@ app.get('/api/notifications/:userId', async (req, res) => {
        LIMIT 10`,
       [userId]
     );
-    
+
     const allNotifications = [...newHireResult.rows, ...replacementResult.rows]
       .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
       .slice(0, 10);
-    
+
     res.json(allNotifications);
   } catch (error) {
     console.error('Error fetching notifications:', error);
@@ -974,7 +974,7 @@ app.get('/api/notifications/:userId', async (req, res) => {
 app.get('/api/hired-notifications/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     // Get recently hired new hire candidates
     const newHireResult = await pool.query(
       `SELECT id, candidate_name, position_title, employee_id, hired_date, 'new_hire' as type
@@ -986,7 +986,7 @@ app.get('/api/hired-notifications/:userId', async (req, res) => {
        LIMIT 10`,
       [userId]
     );
-    
+
     // Get recently hired replacement candidates
     const replacementResult = await pool.query(
       `SELECT id, replacement_candidate_name as candidate_name, 
@@ -1000,11 +1000,11 @@ app.get('/api/hired-notifications/:userId', async (req, res) => {
        LIMIT 10`,
       [userId]
     );
-    
+
     const allHiredNotifications = [...newHireResult.rows, ...replacementResult.rows]
       .sort((a, b) => new Date(b.hired_date) - new Date(a.hired_date))
       .slice(0, 10);
-    
+
     res.json(allHiredNotifications);
   } catch (error) {
     console.error('Error fetching hired notifications:', error);
@@ -1016,7 +1016,7 @@ app.get('/api/hired-notifications/:userId', async (req, res) => {
 app.get('/api/rejection-notifications/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     const newHireResult = await pool.query(
       `SELECT id, candidate_name, position_title, 'new_hire' as type, updated_at,
               rejection_reason, hr_head_comments, admin_comments
@@ -1025,7 +1025,7 @@ app.get('/api/rejection-notifications/:userId', async (req, res) => {
        ORDER BY updated_at DESC LIMIT 10`,
       [userId]
     );
-    
+
     const replacementResult = await pool.query(
       `SELECT id, replacement_candidate_name as candidate_name, 
               'Replacement for ' || outgoing_employee_name as position_title, 
@@ -1036,11 +1036,11 @@ app.get('/api/rejection-notifications/:userId', async (req, res) => {
        ORDER BY updated_at DESC LIMIT 10`,
       [userId]
     );
-    
+
     const all = [...newHireResult.rows, ...replacementResult.rows]
       .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
       .slice(0, 10);
-    
+
     res.json(all);
   } catch (error) {
     console.error('Error fetching rejection notifications:', error);
@@ -1054,7 +1054,7 @@ app.delete('/api/approvals/:id', async (req, res) => {
     const { id } = req.params;
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: 'userId required' });
-    
+
     const check = await pool.query(
       'SELECT id, approval_status, hiring_manager_id FROM "NewHiringApprovals" WHERE id = $1',
       [id]
@@ -1063,7 +1063,7 @@ app.delete('/api/approvals/:id', async (req, res) => {
     const row = check.rows[0];
     if (row.hiring_manager_id != userId) return res.status(403).json({ error: 'Not your request' });
     if (row.approval_status !== 'Rejected') return res.status(400).json({ error: 'Can only delete rejected requests' });
-    
+
     await pool.query('DELETE FROM "NewHiringApprovals" WHERE id = $1', [id]);
     res.json({ success: true });
   } catch (error) {
@@ -1078,7 +1078,7 @@ app.delete('/api/replacement-approvals/:id', async (req, res) => {
     const { id } = req.params;
     const { userId } = req.query;
     if (!userId) return res.status(400).json({ error: 'userId required' });
-    
+
     const check = await pool.query(
       'SELECT id, approval_status, hiring_manager_id FROM "ReplacementApprovals" WHERE id = $1',
       [id]
@@ -1087,7 +1087,7 @@ app.delete('/api/replacement-approvals/:id', async (req, res) => {
     const row = check.rows[0];
     if (row.hiring_manager_id != userId) return res.status(403).json({ error: 'Not your request' });
     if (row.approval_status !== 'Rejected') return res.status(400).json({ error: 'Can only delete rejected requests' });
-    
+
     await pool.query('DELETE FROM "ReplacementApprovals" WHERE id = $1', [id]);
     res.json({ success: true });
   } catch (error) {
@@ -1104,7 +1104,7 @@ app.put('/api/approvals/:id/resend', async (req, res) => {
     const body = req.body;
     const userId = body.userId || body.hiring_manager_id;
     if (!userId) return res.status(400).json({ error: 'userId required' });
-    
+
     const check = await client.query(
       'SELECT id, approval_status, hiring_manager_id FROM "NewHiringApprovals" WHERE id = $1',
       [id]
@@ -1113,16 +1113,16 @@ app.put('/api/approvals/:id/resend', async (req, res) => {
     const row = check.rows[0];
     if (row.hiring_manager_id != userId) return res.status(403).json({ error: 'Not your request' });
     if (row.approval_status !== 'Rejected') return res.status(400).json({ error: 'Can only resend rejected requests' });
-    
+
     await client.query('BEGIN');
     await client.query('DELETE FROM "NewHiringApprovals" WHERE id = $1', [id]);
-    
+
     const {
       position_title, business_unit, candidate_name, candidate_designation,
       candidate_experience_years, candidate_skills, ctc_offered, joining_date,
       hiring_manager_id, hiring_manager_name
     } = body;
-    
+
     // Same conversion as POST /api/new-hiring-approvals; handle JSON/array strings like '{"Python"}' or '["Python"]'
     let skillsArray;
     if (Array.isArray(candidate_skills)) {
@@ -1143,7 +1143,7 @@ app.put('/api/approvals/:id/resend', async (req, res) => {
       skillsArray = [];
     }
     const skillsVal = skillsArray.length ? skillsArray.join(', ') : null;
-    
+
     const insertResult = await client.query(
       `INSERT INTO "NewHiringApprovals" (
         position_title, business_unit,
@@ -1183,7 +1183,7 @@ app.put('/api/replacement-approvals/:id/resend', async (req, res) => {
     const body = req.body;
     const userId = body.userId || body.hiring_manager_id;
     if (!userId) return res.status(400).json({ error: 'userId required' });
-    
+
     const check = await client.query(
       'SELECT id, approval_status, hiring_manager_id FROM "ReplacementApprovals" WHERE id = $1',
       [id]
@@ -1192,35 +1192,35 @@ app.put('/api/replacement-approvals/:id/resend', async (req, res) => {
     const row = check.rows[0];
     if (row.hiring_manager_id != userId) return res.status(403).json({ error: 'Not your request' });
     if (row.approval_status !== 'Rejected') return res.status(400).json({ error: 'Can only resend rejected requests' });
-    
+
     await client.query('BEGIN');
     await client.query('DELETE FROM "ReplacementApprovals" WHERE id = $1', [id]);
-    
+
     const {
       outgoing_employee_name, outgoing_employee_id, business_unit, last_working_date, leaving_reason,
       replacement_candidate_name, replacement_current_designation,
       replacement_experience_years, replacement_skills,
       ctc_offered, joining_date, hiring_manager_id, hiring_manager_name
     } = body;
-    
+
     const skillsArray = Array.isArray(replacement_skills)
       ? replacement_skills
       : replacement_skills
         ? (() => {
-            const s = String(replacement_skills).trim();
-            if ((s.startsWith('[') && s.endsWith(']')) || (s.startsWith('{') && s.endsWith('}'))) {
-              try {
-                const parsed = JSON.parse(s.replace(/'/g, '"'));
-                return Array.isArray(parsed) ? parsed : [String(parsed)];
-              } catch {
-                return s.split(',').map(x => x.trim().replace(/^"|"$/g, '')).filter(Boolean);
-              }
+          const s = String(replacement_skills).trim();
+          if ((s.startsWith('[') && s.endsWith(']')) || (s.startsWith('{') && s.endsWith('}'))) {
+            try {
+              const parsed = JSON.parse(s.replace(/'/g, '"'));
+              return Array.isArray(parsed) ? parsed : [String(parsed)];
+            } catch {
+              return s.split(',').map(x => x.trim().replace(/^"|"$/g, '')).filter(Boolean);
             }
-            return s.split(',').map(x => x.trim()).filter(Boolean);
-          })()
+          }
+          return s.split(',').map(x => x.trim()).filter(Boolean);
+        })()
         : [];
     const replSkillsVal = skillsArray.length ? skillsArray.join(', ') : null;
-    
+
     const insertResult = await client.query(
       `INSERT INTO "ReplacementApprovals" (
         outgoing_employee_name, outgoing_employee_id, business_unit, last_working_date, leaving_reason,
@@ -1257,7 +1257,7 @@ app.put('/api/replacement-approvals/:id/resend', async (req, res) => {
 app.get('/api/bu/tentative-details-requests/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     // Get new hire requests that are approved by Admin but need tentative details
     const newHireResult = await pool.query(
       `SELECT nh.*, u.name as bu_head_name, u.business_unit
@@ -1270,7 +1270,7 @@ app.get('/api/bu/tentative-details-requests/:userId', async (req, res) => {
        ORDER BY nh.ADMIN_approval_date DESC`,
       [userId]
     );
-    
+
     // Get replacement requests that are approved by Admin but need tentative details
     const replacementResult = await pool.query(
       `SELECT r.*, u.name as bu_head_name, u.business_unit
@@ -1283,7 +1283,7 @@ app.get('/api/bu/tentative-details-requests/:userId', async (req, res) => {
        ORDER BY r.admin_approval_date DESC`,
       [userId]
     );
-    
+
     res.json({
       newHire: newHireResult.rows,
       replacement: replacementResult.rows
@@ -1299,13 +1299,13 @@ app.put('/api/bu/enter-tentative-details/:requestType/:requestId', async (req, r
   try {
     const { requestType, requestId } = req.params;
     const { tentative_join_date, tentative_candidate_name } = req.body;
-    
+
     if (!tentative_join_date || !tentative_candidate_name) {
       return res.status(400).json({ error: 'Tentative join date and candidate name are required' });
     }
-    
+
     let result;
-    
+
     if (requestType === 'new-hire') {
       result = await pool.query(
         `UPDATE "NewHiringApprovals" 
@@ -1335,13 +1335,13 @@ app.put('/api/bu/enter-tentative-details/:requestType/:requestId', async (req, r
     } else {
       return res.status(400).json({ error: 'Invalid request type' });
     }
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Request not found or not eligible for tentative details entry' });
     }
-    
+
     const updatedRequest = result.rows[0];
-    
+
     res.json({
       message: 'Tentative details entered successfully',
       request: updatedRequest
@@ -1365,7 +1365,7 @@ app.get('/api/hr/final-details-requests', async (req, res) => {
        AND nh.hr_head_final_entered = false
        ORDER BY nh.bu_head_tentative_date DESC`
     );
-    
+
     // Get replacement requests that have tentative details but need final details
     const replacementResult = await pool.query(
       `SELECT r.*, u.name as bu_head_name, u.business_unit
@@ -1376,7 +1376,7 @@ app.get('/api/hr/final-details-requests', async (req, res) => {
        AND r.hr_head_final_entered = false
        ORDER BY r.bu_head_tentative_date DESC`
     );
-    
+
     res.json({
       newHire: newHireResult.rows,
       replacement: replacementResult.rows
@@ -1392,13 +1392,13 @@ app.put('/api/hr/enter-final-details/:requestType/:requestId', async (req, res) 
   try {
     const { requestType, requestId } = req.params;
     const { exact_join_date, exact_salary, employee_id } = req.body;
-    
+
     if (!exact_join_date || !exact_salary || !employee_id) {
       return res.status(400).json({ error: 'Exact join date, exact salary, and employee ID are required' });
     }
-    
+
     let result;
-    
+
     if (requestType === 'new-hire') {
       result = await pool.query(
         `UPDATE "NewHiringApprovals" 
@@ -1436,13 +1436,13 @@ app.put('/api/hr/enter-final-details/:requestType/:requestId', async (req, res) 
     } else {
       return res.status(400).json({ error: 'Invalid request type' });
     }
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Request not found or not eligible for final details entry' });
     }
-    
+
     const updatedRequest = result.rows[0];
-    
+
     res.json({
       message: 'Final details entered successfully',
       request: updatedRequest
@@ -1457,16 +1457,16 @@ app.put('/api/hr/enter-final-details/:requestType/:requestId', async (req, res) 
 app.get('/api/users/:userId/team-cost', async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     const result = await pool.query(
       'SELECT team_cost FROM "Users" WHERE id = $1',
       [userId]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     res.json({
       team_cost: result.rows[0].team_cost || 0
     });
@@ -1481,20 +1481,20 @@ app.put('/api/users/:userId/team-cost', async (req, res) => {
   try {
     const { userId } = req.params;
     const { team_cost } = req.body;
-    
+
     if (team_cost === undefined || team_cost === null || isNaN(team_cost)) {
       return res.status(400).json({ error: 'Invalid team cost value' });
     }
-    
+
     const result = await pool.query(
       'UPDATE "Users" SET team_cost = $1 WHERE id = $2 RETURNING *',
       [team_cost, userId]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     res.json({
       message: 'Team cost updated successfully',
       user: result.rows[0]
@@ -1509,17 +1509,17 @@ app.put('/api/users/:userId/team-cost', async (req, res) => {
 app.get('/api/users/:userId/total-ctc', async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     // Get user's business unit
     const userResult = await pool.query(
       'SELECT business_unit FROM "Users" WHERE id = $1',
       [userId]
     );
-    
+
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     // Only joined hires: 20% of exact_salary (or ctc_offered if exact_salary not set) deducted from team budget
     const newHireResult = await pool.query(
       `SELECT COALESCE(SUM(
@@ -1534,7 +1534,7 @@ app.get('/api/users/:userId/total-ctc', async (req, res) => {
        AND (join_confirmed = true OR join_confirmation_status = 'Joined')`,
       [userId]
     );
-    
+
     const replacementResult = await pool.query(
       `SELECT COALESCE(SUM(
          (CASE 
@@ -1548,9 +1548,9 @@ app.get('/api/users/:userId/total-ctc', async (req, res) => {
        AND (join_confirmed = true OR join_confirmation_status = 'Joined')`,
       [userId]
     );
-    
+
     const totalCTC = parseFloat(newHireResult.rows[0].total) + parseFloat(replacementResult.rows[0].total);
-    
+
     res.json({ totalCTC });
   } catch (error) {
     console.error('Error calculating total CTC:', error);
@@ -1604,13 +1604,13 @@ app.get('/api/users/:userId/team-budget-breakdown', async (req, res) => {
 app.get('/api/bu-cost/:businessUnit', async (req, res) => {
   try {
     const { businessUnit } = req.params;
-    
+
     // Get total team cost (from Users table)
     const budgetResponse = await pool.query(
       'SELECT COALESCE(SUM(team_cost), 0) as team_cost FROM "Users" WHERE business_unit = $1',
       [businessUnit]
     );
-    
+
     // 20% of exact_salary for each joined hire (or ctc_offered if exact_salary not set)
     const newHireResponse = await pool.query(
       `SELECT COALESCE(SUM(
@@ -1625,7 +1625,7 @@ app.get('/api/bu-cost/:businessUnit', async (req, res) => {
        AND (join_confirmed = true OR join_confirmation_status = 'Joined')`,
       [businessUnit]
     );
-    
+
     const replacementResponse = await pool.query(
       `SELECT COALESCE(SUM(
          (CASE 
@@ -1639,9 +1639,9 @@ app.get('/api/bu-cost/:businessUnit', async (req, res) => {
        AND (join_confirmed = true OR join_confirmation_status = 'Joined')`,
       [businessUnit]
     );
-    
+
     const totalCTC = parseFloat(newHireResponse.rows[0].total) + parseFloat(replacementResponse.rows[0].total);
-    
+
     res.json({
       team_cost: parseFloat(budgetResponse.rows[0].team_cost) || 0,
       totalCTC
@@ -1655,7 +1655,7 @@ app.get('/api/bu-cost/:businessUnit', async (req, res) => {
 app.get('/api/bu/join-confirmation-requests/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     // Get new hire requests that need join confirmation
     const newHireResult = await pool.query(
       `SELECT nh.*, u.name as bu_head_name, u.business_unit
@@ -1669,7 +1669,7 @@ app.get('/api/bu/join-confirmation-requests/:userId', async (req, res) => {
        ORDER BY nh.exact_join_date DESC`,
       [userId]
     );
-    
+
     // Get replacement requests that need join confirmation
     const replacementResult = await pool.query(
       `SELECT r.*, u.name as bu_head_name, u.business_unit
@@ -1683,7 +1683,7 @@ app.get('/api/bu/join-confirmation-requests/:userId', async (req, res) => {
        ORDER BY r.exact_join_date DESC`,
       [userId]
     );
-    
+
     res.json({
       newHire: newHireResult.rows,
       replacement: replacementResult.rows
@@ -1699,11 +1699,11 @@ app.put('/api/bu/confirm-join/:requestType/:requestId', async (req, res) => {
   try {
     const { requestType, requestId } = req.params;
     const { join_confirmation_status, join_confirmation_notes } = req.body;
-    
+
     if (!join_confirmation_status || !['Joined', 'Not_Joined'].includes(join_confirmation_status)) {
       return res.status(400).json({ error: 'Valid join confirmation status is required' });
     }
-    
+
     // Get current record to avoid double-deduction (only deduct when newly becoming Joined)
     const table = requestType === 'new-hire' ? 'NewHiringApprovals' : 'ReplacementApprovals';
     const existing = await pool.query(
@@ -1711,9 +1711,9 @@ app.put('/api/bu/confirm-join/:requestType/:requestId', async (req, res) => {
       [requestId]
     );
     const wasAlreadyJoined = existing.rows[0]?.join_confirmation_status === 'Joined';
-    
+
     let result;
-    
+
     if (requestType === 'new-hire') {
       result = await pool.query(
         `UPDATE "NewHiringApprovals" 
@@ -1741,13 +1741,13 @@ app.put('/api/bu/confirm-join/:requestType/:requestId', async (req, res) => {
     } else {
       return res.status(400).json({ error: 'Invalid request type' });
     }
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Request not found or not eligible for join confirmation' });
     }
-    
+
     const updatedRequest = result.rows[0];
-    
+
     // When newly marked Joined: subtract 20% of salary from hiring manager's team budget (no double-deduction)
     if (join_confirmation_status === 'Joined' && !wasAlreadyJoined) {
       const amount = (updatedRequest.exact_salary && updatedRequest.exact_salary > 0)
@@ -1763,7 +1763,7 @@ app.put('/api/bu/confirm-join/:requestType/:requestId', async (req, res) => {
         );
       }
     }
-    
+
     res.json({
       message: 'Join confirmation updated successfully',
       request: updatedRequest
@@ -1788,7 +1788,7 @@ app.get('/api/hr/join-confirmation-requests', async (req, res) => {
        AND nh.exact_join_date <= CURRENT_DATE
        ORDER BY nh.exact_join_date DESC`
     );
-    
+
     // Get replacement requests that need join confirmation
     const replacementResult = await pool.query(
       `SELECT r.*, u.name as bu_head_name, u.business_unit
@@ -1800,7 +1800,7 @@ app.get('/api/hr/join-confirmation-requests', async (req, res) => {
        AND r.exact_join_date <= CURRENT_DATE
        ORDER BY r.exact_join_date DESC`
     );
-    
+
     res.json({
       newHire: newHireResult.rows,
       replacement: replacementResult.rows
@@ -1816,20 +1816,20 @@ app.put('/api/hr/confirm-join/:requestType/:requestId', async (req, res) => {
   try {
     const { requestType, requestId } = req.params;
     const { join_confirmation_status, join_confirmation_notes } = req.body;
-    
+
     if (!join_confirmation_status || !['Joined', 'Not_Joined'].includes(join_confirmation_status)) {
       return res.status(400).json({ error: 'Valid join confirmation status is required' });
     }
-    
+
     const table = requestType === 'new-hire' ? 'NewHiringApprovals' : 'ReplacementApprovals';
     const existing = await pool.query(
       `SELECT join_confirmation_status FROM "${table}" WHERE id = $1`,
       [requestId]
     );
     const wasAlreadyJoined = existing.rows[0]?.join_confirmation_status === 'Joined';
-    
+
     let result;
-    
+
     if (requestType === 'new-hire') {
       result = await pool.query(
         `UPDATE "NewHiringApprovals" 
@@ -1857,13 +1857,13 @@ app.put('/api/hr/confirm-join/:requestType/:requestId', async (req, res) => {
     } else {
       return res.status(400).json({ error: 'Invalid request type' });
     }
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Request not found or not eligible for join confirmation' });
     }
-    
+
     const updatedRequest = result.rows[0];
-    
+
     if (join_confirmation_status === 'Joined' && !wasAlreadyJoined) {
       const amount = (updatedRequest.exact_salary && updatedRequest.exact_salary > 0)
         ? updatedRequest.exact_salary * 0.20
@@ -1878,7 +1878,7 @@ app.put('/api/hr/confirm-join/:requestType/:requestId', async (req, res) => {
         );
       }
     }
-    
+
     res.json({
       message: 'Join confirmation updated successfully',
       request: updatedRequest
@@ -1893,7 +1893,7 @@ app.put('/api/hr/confirm-join/:requestType/:requestId', async (req, res) => {
 app.get('/api/candidates/hiring-ticket-raised/:businessUnit', async (req, res) => {
   try {
     const { businessUnit } = req.params;
-    
+
     // Get all new hire and replacement requests for the business unit that are still in initial stage
     const newHireResult = await pool.query(
       `SELECT 
@@ -1906,7 +1906,7 @@ app.get('/api/candidates/hiring-ticket-raised/:businessUnit', async (req, res) =
        ORDER BY created_at DESC`,
       [businessUnit]
     );
-    
+
     const replacementResult = await pool.query(
       `SELECT 
         id, replacement_candidate_name, replacement_current_designation as position_title, business_unit, 
@@ -1919,12 +1919,12 @@ app.get('/api/candidates/hiring-ticket-raised/:businessUnit', async (req, res) =
        ORDER BY created_at DESC`,
       [businessUnit]
     );
-    
+
     console.log('New Hire Results:', newHireResult.rows);
     console.log('Replacement Results:', replacementResult.rows);
-    
+
     const allCandidates = [...newHireResult.rows, ...replacementResult.rows];
-    
+
     res.json(allCandidates);
   } catch (error) {
     console.error('Error fetching hiring ticket raised candidates:', error);
@@ -1936,7 +1936,7 @@ app.get('/api/candidates/hiring-ticket-raised/:businessUnit', async (req, res) =
 app.get('/api/candidates/approved-yet-to-hire/:businessUnit', async (req, res) => {
   try {
     const { businessUnit } = req.params;
-    
+
     // Get candidates approved by HR Head and Admin but not yet finalized
     const newHireResult = await pool.query(
       `SELECT 
@@ -1951,7 +1951,7 @@ app.get('/api/candidates/approved-yet-to-hire/:businessUnit', async (req, res) =
        ORDER BY created_at DESC`,
       [businessUnit]
     );
-    
+
     const replacementResult = await pool.query(
       `SELECT 
         id, replacement_candidate_name, replacement_current_designation as position_title, business_unit, 
@@ -1966,9 +1966,9 @@ app.get('/api/candidates/approved-yet-to-hire/:businessUnit', async (req, res) =
        ORDER BY created_at DESC`,
       [businessUnit]
     );
-    
+
     const allCandidates = [...newHireResult.rows, ...replacementResult.rows];
-    
+
     res.json(allCandidates);
   } catch (error) {
     console.error('Error fetching approved yet to hire candidates:', error);
@@ -1980,7 +1980,7 @@ app.get('/api/candidates/approved-yet-to-hire/:businessUnit', async (req, res) =
 app.get('/api/candidates/selected-yet-to-offer/:businessUnit', async (req, res) => {
   try {
     const { businessUnit } = req.params;
-    
+
     // Get candidates where BU Head has entered tentative details but HR Head hasn't entered final details
     const newHireResult = await pool.query(
       `SELECT 
@@ -1994,7 +1994,7 @@ app.get('/api/candidates/selected-yet-to-offer/:businessUnit', async (req, res) 
        ORDER BY bu_head_tentative_date DESC`,
       [businessUnit]
     );
-    
+
     const replacementResult = await pool.query(
       `SELECT 
         id, tentative_candidate_name, replacement_current_designation as position_title, business_unit, 
@@ -2008,9 +2008,9 @@ app.get('/api/candidates/selected-yet-to-offer/:businessUnit', async (req, res) 
        ORDER BY bu_head_tentative_date DESC`,
       [businessUnit]
     );
-    
+
     const allCandidates = [...newHireResult.rows, ...replacementResult.rows];
-    
+
     res.json(allCandidates);
   } catch (error) {
     console.error('Error fetching selected yet to offer candidates:', error);
@@ -2022,7 +2022,7 @@ app.get('/api/candidates/selected-yet-to-offer/:businessUnit', async (req, res) 
 app.get('/api/candidates/offered-yet-to-join/:businessUnit', async (req, res) => {
   try {
     const { businessUnit } = req.params;
-    
+
     // Get candidates where HR Head has entered final details but BU Head hasn't confirmed join
     const newHireResult = await pool.query(
       `SELECT 
@@ -2036,7 +2036,7 @@ app.get('/api/candidates/offered-yet-to-join/:businessUnit', async (req, res) =>
        ORDER BY hr_head_final_date DESC`,
       [businessUnit]
     );
-    
+
     const replacementResult = await pool.query(
       `SELECT 
         id, tentative_candidate_name, replacement_current_designation as position_title, business_unit, 
@@ -2050,9 +2050,9 @@ app.get('/api/candidates/offered-yet-to-join/:businessUnit', async (req, res) =>
        ORDER BY hr_head_final_date DESC`,
       [businessUnit]
     );
-    
+
     const allCandidates = [...newHireResult.rows, ...replacementResult.rows];
-    
+
     res.json(allCandidates);
   } catch (error) {
     console.error('Error fetching offered yet to join candidates:', error);
@@ -2064,7 +2064,7 @@ app.get('/api/candidates/offered-yet-to-join/:businessUnit', async (req, res) =>
 app.get('/api/candidates/existing-team/:businessUnit', async (req, res) => {
   try {
     const { businessUnit } = req.params;
-    
+
     // Get candidates who have joined (confirmed by BU Head)
     const newHireResult = await pool.query(
       `SELECT 
@@ -2077,7 +2077,7 @@ app.get('/api/candidates/existing-team/:businessUnit', async (req, res) => {
        ORDER BY join_confirmation_date DESC`,
       [businessUnit]
     );
-    
+
     const replacementResult = await pool.query(
       `SELECT 
         id, tentative_candidate_name, replacement_current_designation as position_title, business_unit, 
@@ -2090,9 +2090,9 @@ app.get('/api/candidates/existing-team/:businessUnit', async (req, res) => {
        ORDER BY join_confirmation_date DESC`,
       [businessUnit]
     );
-    
+
     const allCandidates = [...newHireResult.rows, ...replacementResult.rows];
-    
+
     res.json(allCandidates);
   } catch (error) {
     console.error('Error fetching existing team candidates:', error);
@@ -2104,7 +2104,7 @@ app.get('/api/candidates/existing-team/:businessUnit', async (req, res) => {
 app.get('/api/candidates/to-be-rationalized/:businessUnit', async (req, res) => {
   try {
     const { businessUnit } = req.params;
-    
+
     // Get replacement candidates who haven't joined yet
     const replacementResult = await pool.query(
       `SELECT 
@@ -2119,7 +2119,7 @@ app.get('/api/candidates/to-be-rationalized/:businessUnit', async (req, res) => 
        ORDER BY created_at DESC`,
       [businessUnit]
     );
-    
+
     res.json(replacementResult.rows);
   } catch (error) {
     console.error('Error fetching to be rationalized candidates:', error);
@@ -2143,7 +2143,7 @@ app.get('/api/admin/total-hires', async (req, res) => {
        WHERE join_confirmed = true
        ORDER BY exact_join_date DESC`
     );
-    
+
     const replacementResult = await pool.query(
       `SELECT 
         replacement_candidate_name as name,
@@ -2157,7 +2157,7 @@ app.get('/api/admin/total-hires', async (req, res) => {
        WHERE join_confirmed = true
        ORDER BY exact_join_date DESC`
     );
-    
+
     const allHires = [...newHireResult.rows, ...replacementResult.rows];
     res.json(allHires);
   } catch (error) {
@@ -2182,7 +2182,7 @@ app.get('/api/admin/pending-requests', async (req, res) => {
        WHERE approval_status = 'Pending'
        ORDER BY created_at DESC`
     );
-    
+
     const replacementResult = await pool.query(
       `SELECT 
         replacement_candidate_name as name,
@@ -2197,7 +2197,7 @@ app.get('/api/admin/pending-requests', async (req, res) => {
        WHERE approval_status = 'Pending'
        ORDER BY created_at DESC`
     );
-    
+
     const allPending = [...newHireResult.rows, ...replacementResult.rows];
     res.json(allPending);
   } catch (error) {
@@ -2223,7 +2223,7 @@ app.get('/api/admin/pending-from-hr', async (req, res) => {
        AND (admin_approved = false OR admin_approved IS NULL)
        ORDER BY created_at DESC`
     );
-    
+
     const replacementResult = await pool.query(
       `SELECT 
         replacement_candidate_name as name,
@@ -2239,7 +2239,7 @@ app.get('/api/admin/pending-from-hr', async (req, res) => {
        AND (admin_approved = false OR admin_approved IS NULL)
        ORDER BY created_at DESC`
     );
-    
+
     const allPendingFromHR = [...newHireResult.rows, ...replacementResult.rows];
     res.json(allPendingFromHR);
   } catch (error) {
@@ -2252,27 +2252,27 @@ app.get('/api/admin/pending-from-hr', async (req, res) => {
 app.get('/api/candidates/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     // Get user details to check their role
     const userResult = await pool.query(
       'SELECT designation, business_unit FROM "Users" WHERE id = $1',
       [userId]
     );
-    
+
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     const user = userResult.rows[0];
     let newHireQuery, replacementQuery, newHireParams = [], replacementParams = [];
-    
+
     // Case-insensitive designation check
     const userDesignation = user.designation?.toLowerCase();
-    
+
     if (userDesignation === 'bu head') {
       // BU Heads can only see their business unit's candidates
       console.log(`BU Head ${user.name} (ID: ${userId}) accessing data for business unit: ${user.business_unit}`);
-      
+
       // Debug: Check what business units exist in the database
       const allBusinessUnitsResult = await pool.query(`
         SELECT DISTINCT business_unit FROM "NewHiringApprovals" 
@@ -2281,7 +2281,7 @@ app.get('/api/candidates/:userId', async (req, res) => {
         ORDER BY business_unit
       `);
       console.log('All business units in database:', allBusinessUnitsResult.rows.map(row => row.business_unit));
-      
+
       // BU Heads should only see candidates they submitted themselves
       newHireQuery = `SELECT nh.*, u.name as bu_head_name, nh.business_unit
                       FROM "NewHiringApprovals" nh
@@ -2298,7 +2298,7 @@ app.get('/api/candidates/:userId', async (req, res) => {
     } else {
       // HR Heads and Admins can see all candidates
       console.log(`${user.designation} ${user.name} (ID: ${userId}) accessing all candidate data`);
-      
+
       newHireQuery = `SELECT nh.*, u.name as bu_head_name, nh.business_unit
                       FROM "NewHiringApprovals" nh
                       JOIN "Users" u ON nh.hiring_manager_id = u.id
@@ -2308,23 +2308,23 @@ app.get('/api/candidates/:userId', async (req, res) => {
                          JOIN "Users" u ON r.hiring_manager_id = u.id
                          ORDER BY r.created_at DESC`;
     }
-    
+
     const newHireResult = await pool.query(newHireQuery, newHireParams);
     const replacementResult = await pool.query(replacementQuery, replacementParams);
-    
+
     // Debug logging for BU Head
     if (userDesignation === 'bu head') {
       console.log(`Query executed for business unit: ${user.business_unit}`);
       console.log(`New Hire results: ${newHireResult.rows.length} records`);
       console.log(`Replacement results: ${replacementResult.rows.length} records`);
-      
+
       // Log unique business units found in results
       const newHireBusinessUnits = [...new Set(newHireResult.rows.map(row => row.business_unit))];
       const replacementBusinessUnits = [...new Set(replacementResult.rows.map(row => row.business_unit))];
       console.log(`Business units in New Hire results:`, newHireBusinessUnits);
       console.log(`Business units in Replacement results:`, replacementBusinessUnits);
     }
-    
+
     res.json({
       newHire: newHireResult.rows,
       replacement: replacementResult.rows
@@ -2340,27 +2340,27 @@ app.put('/api/candidates/:requestType/:requestId', async (req, res) => {
   try {
     const { requestType, requestId } = req.params;
     const { updated_by, ...updateData } = req.body;
-    
+
     // Check if user has permission to edit
     const userResult = await pool.query(
       'SELECT designation FROM "Users" WHERE id = $1',
       [updated_by]
     );
-    
+
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     const userRole = userResult.rows[0].designation;
     if (userRole !== 'Admin' && userRole !== 'HR Head' && userRole !== 'HR HEAD') {
       return res.status(403).json({ error: 'Unauthorized to edit candidate data' });
     }
-    
+
     let result;
     const updateFields = [];
     const updateValues = [];
     let paramIndex = 1;
-    
+
     // Build dynamic update query
     for (const [key, value] of Object.entries(updateData)) {
       if (value !== undefined && value !== null) {
@@ -2369,17 +2369,17 @@ app.put('/api/candidates/:requestType/:requestId', async (req, res) => {
         paramIndex++;
       }
     }
-    
+
     if (updateFields.length === 0) {
       return res.status(400).json({ error: 'No valid fields to update' });
     }
-    
+
     updateFields.push(`updated_at = $${paramIndex}`);
     updateValues.push(new Date().toISOString());
     paramIndex++;
-    
+
     updateValues.push(requestId);
-    
+
     if (requestType === 'new-hire') {
       result = await pool.query(
         `UPDATE "NewHiringApprovals" 
@@ -2399,11 +2399,11 @@ app.put('/api/candidates/:requestType/:requestId', async (req, res) => {
     } else {
       return res.status(400).json({ error: 'Invalid request type' });
     }
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Candidate not found' });
     }
-    
+
     res.json({
       message: 'Candidate data updated successfully',
       candidate: result.rows[0]
@@ -2414,10 +2414,7 @@ app.put('/api/candidates/:requestType/:requestId', async (req, res) => {
   }
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+
 
 // Debug endpoint to check join confirmation candidates
 app.get('/api/debug/join-confirmation-candidates', async (req, res) => {
@@ -2439,7 +2436,7 @@ app.get('/api/debug/join-confirmation-candidates', async (req, res) => {
        WHERE hr_head_final_entered = true
        ORDER BY exact_join_date DESC`
     );
-    
+
     const replacementCandidatesResult = await pool.query(
       `SELECT 
         'replacement' as type,
@@ -2456,7 +2453,7 @@ app.get('/api/debug/join-confirmation-candidates', async (req, res) => {
        WHERE hr_head_final_entered = true
        ORDER BY exact_join_date DESC`
     );
-    
+
     res.json({
       newHire: allCandidatesResult.rows,
       replacement: replacementCandidatesResult.rows,
@@ -2468,3 +2465,7 @@ app.get('/api/debug/join-confirmation-candidates', async (req, res) => {
   }
 });
 
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
