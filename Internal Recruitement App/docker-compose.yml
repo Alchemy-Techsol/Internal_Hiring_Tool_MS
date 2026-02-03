@@ -1,9 +1,9 @@
-version: '3.8'
+version: "3.8"
 
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: recruitment-postgres
+    container_name: internal-hiring-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
@@ -25,7 +25,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: recruitment-backend
+    container_name: internal-hiring-backend
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -46,7 +46,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.nginx
-    container_name: recruitment-nginx
+    container_name: internal-hiring-frontend
     restart: unless-stopped
     ports:
       - "80:80"
