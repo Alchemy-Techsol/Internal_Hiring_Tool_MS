@@ -46,7 +46,7 @@ const RoleBasedDashboard = () => {
 
 function App() {
   return (
-    <Router>
+    <Router basename="/internal-hiring">
       <div className="App">
         <Routes>
           {/* Redirect root to login */}
