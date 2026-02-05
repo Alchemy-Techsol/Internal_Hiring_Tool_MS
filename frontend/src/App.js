@@ -11,8 +11,13 @@ import './App.css';
 // Authentication wrapper component
 const ProtectedRoute = ({ children }) => {
   const userData = localStorage.getItem('user');
+  const token = localStorage.getItem('token');
   
-  if (!userData) {
+  // Check if both user data and token exist
+  if (!userData || !token || token === 'undefined' || token === 'null') {
+    // Clear any partial data
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
     return <Navigate to="/login" replace />;
   }
   

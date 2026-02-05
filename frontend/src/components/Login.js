@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { buildApiUrl, API_ENDPOINTS } from '../config/api';
@@ -12,6 +12,104 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+
+  // Check for VMS SSO token on component mount
+  useEffect(() => {
+    const checkVMSToken = async () => {
+      console.log('Checking for VMS SSO token...');
+      
+      // Check URL hash for SSO token
+      const hash = window.location.hash;
+      let vmsToken = null;
+      
+      if (hash && hash.includes('sso_token=')) {
+        const match = hash.match(/sso_token=([^&]+)/);
+        if (match) {
+          vmsToken = decodeURIComponent(match[1]);
+          console.log('VMS Token found in URL hash');
+          // Clear the hash immediately for security
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+      }
+      
+      // Fallback: check sessionStorage (for production same-origin)
+      if (!vmsToken) {
+        vmsToken = sessionStorage.getItem('vms_sso_token');
+        if (vmsToken) {
+          console.log('VMS Token found in sessionStorage');
+          sessionStorage.removeItem('vms_sso_token');
+        }
+      }
+      
+      console.log('VMS Token found:', vmsToken ? 'Yes' : 'No');
+      
+      if (vmsToken) {
+        console.log('Token value:', vmsToken.substring(0, 20) + '...');
+        
+        setLoading(true);
+        
+        try {
+          console.log('Validating VMS token with backend...');
+          // Validate VMS token with backend
+          const response = await axios.post(
+            buildApiUrl('/api/auth/validate-vms-token'),
+            { token: vmsToken },
+            {
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          
+          console.log('Token validation successful:', response.data);
+          
+          // Store user data and token
+          localStorage.setItem('user', JSON.stringify(response.data.user));
+          localStorage.setItem('token', response.data.token);
+          
+          // Navigate based on user designation
+          switch(response.data.user.designation) {
+            case 'Admin':
+              navigate('/AdminDashboard');
+              break;
+            case 'BU HEAD':
+              navigate('/BUPage');
+              break;
+            case 'HR HEAD':
+            case 'HR EXECUTIVE':
+              navigate('/HRPage');
+              break;
+            default:
+              setError('Invalid user role. Please contact administrator.');
+          }
+          
+        } catch (error) {
+          console.error('VMS token validation failed:', error);
+          console.error('Error response:', error.response?.data);
+          
+          // Check if we should redirect back to VMS
+          if (error.response?.data?.redirectToVMS) {
+            // Show error briefly then redirect
+            const errorMsg = error.response?.data?.message || 
+                           'Access denied. Redirecting back to VMS...';
+            setError(errorMsg);
+            
+            setTimeout(() => {
+              window.location.href = 'https://q9lab.in/vms/';
+            }, 5000); // 5 seconds delay before redirect
+          } else {
+            setError('SSO authentication failed. Please login manually.');
+          }
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        console.log('No VMS token found');
+      }
+    };
+    
+    checkVMSToken();
+  }, [navigate]);
 
   const handleChange = (e) => {
     setFormData({

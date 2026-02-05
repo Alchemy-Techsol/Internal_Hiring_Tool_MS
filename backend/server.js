@@ -3,6 +3,8 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const { Pool } = require('pg');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 
 const app = express();
 const PORT = process.env.PORT || 5011;
@@ -62,6 +64,13 @@ pool.query('SELECT NOW()', (err, res) => {
 });
 
 
+// Generate JWT Token
+const generateToken = (id, email) => {
+  return jwt.sign({ id, email }, process.env.JWT_SECRET||'your_super_secret_jwt_key_change_this_in_production_12345', {
+    expiresIn: '30d',
+  });
+};
+
 // Signup Endpoint
 app.post("/api/signup", async (req, res) => {
   try {
@@ -70,7 +79,7 @@ app.post("/api/signup", async (req, res) => {
     if (!name || !email || !password || !designation || !business_unit) {
       return res.status(400).json({ error: "All fields are required" });
     }
-
+ 
     const userExists = await pool.query(
       'SELECT * FROM "Users" WHERE email = $1',
       [email]
@@ -80,16 +89,25 @@ app.post("/api/signup", async (req, res) => {
       return res.status(409).json({ error: "Email already exists" });
     }
 
+    // Hash password with bcrypt
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // Insert user with hashed password
     const newUser = await pool.query(
       `INSERT INTO "Users" (name, email, password, designation, business_unit, created_at) 
        VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP) 
        RETURNING id, name, email, designation, business_unit, created_at`,
-      [name, email, password, designation, business_unit]
+      [name, email, hashedPassword, designation, business_unit]
     );
+
+    // Generate JWT token
+    const token = generateToken(newUser.rows[0].id, newUser.rows[0].email);
 
     res.status(201).json({
       message: "User registered successfully",
-      user: newUser.rows[0]
+      user: newUser.rows[0],
+      token
     });
 
   } catch (error) {
@@ -110,9 +128,10 @@ app.post("/api/login", async (req, res) => {
       return res.status(400).json({ error: "Email and password are required" });
     }
 
+    // Find user by email (includes password for verification)
     const userResult = await pool.query(
-      'SELECT * FROM "Users" WHERE email = $1 AND password = $2',
-      [email, password]
+      'SELECT * FROM "Users" WHERE email = $1',
+      [email]
     );
 
     if (userResult.rows.length === 0) {
@@ -120,16 +139,104 @@ app.post("/api/login", async (req, res) => {
     }
 
     const user = userResult.rows[0];
+
+    // Verify password using bcrypt
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    // Remove password from user object
     const { password: _, ...userData } = user;
+
+    // Generate JWT token
+    const token = generateToken(user.id, user.email);
 
     res.json({
       message: "Login successful",
-      user: userData
+      user: userData,
+      token
     });
 
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// VMS Token Validation Endpoint for SSO
+app.post("/api/auth/validate-vms-token", async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: "Token is required" });
+    }
+
+    // Verify VMS JWT token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET||'your_super_secret_jwt_key_change_this_in_production_12345');
+    } catch (err) {
+      console.error("❌ Token verification failed:", err.message);
+      console.error("Error name:", err.name);
+      return res.status(401).json({ 
+        error: "Invalid or expired token",
+        details: err.message,
+        redirectToVMS: true 
+      });
+    }
+
+    // Extract email from token payload
+    const { email } = decoded;
+    console.log('📧 Email from token:', email);
+
+    if (!email) {
+      console.error('❌ Token missing email field');
+      return res.status(401).json({ 
+        error: "Invalid token payload - missing email",
+        redirectToVMS: true 
+      });
+    }
+
+    // Find user in Internal Hiring database by email
+    console.log('🔍 Looking up user in database...');
+    const userResult = await pool.query(
+      'SELECT * FROM "Users" WHERE email = $1',
+      [email]
+    );
+
+    if (userResult.rows.length === 0) {
+      console.log(`❌ User with email ${email} not found in Internal Hiring database`);
+      return res.status(404).json({ 
+        error: "User not found in Internal Hiring system",
+        message: "Your account is not set up for Internal Hiring. Please contact HR.",
+        redirectToVMS: true 
+      });
+    }
+
+    const user = userResult.rows[0];
+    console.log('✅ User found:', user.name);
+
+    // Remove password from user object
+    const { password: _, ...userData } = user;
+
+    // Generate new Internal Hiring JWT token
+    const internalToken = generateToken(user.id, user.email);
+
+    res.json({
+      message: "VMS token validated successfully",
+      user: userData,
+      token: internalToken
+    });
+
+  } catch (error) {
+    console.error("VMS token validation error:", error);
+    res.status(500).json({ 
+      error: "Internal server error",
+      redirectToVMS: true 
+    });
   }
 });
 
