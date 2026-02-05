@@ -211,7 +211,7 @@ app.post("/api/auth/validate-vms-token", async (req, res) => {
       console.log(`❌ User with email ${email} not found in Internal Hiring database`);
       return res.status(404).json({ 
         error: "User not found in Internal Hiring system",
-        message: "Your account is not set up for Internal Hiring. Please contact HR.",
+        message: "Your account is not set up for Internal Hiring. Please contact Admin.",
         redirectToVMS: true 
       });
     }
