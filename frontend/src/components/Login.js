@@ -94,9 +94,9 @@ const Login = () => {
                            'Access denied. Redirecting back to VMS...';
             setError(errorMsg);
             
-            setTimeout(() => {
-              window.location.href = 'https://q9lab.in/vms/';
-            }, 5000); // 5 seconds delay before redirect
+            // setTimeout(() => {
+            //   window.location.href = 'https://q9lab.in/vms/';
+            // }, 5000); // 5 seconds delay before redirect
           } else {
             setError('SSO authentication failed. Please login manually.');
           }
