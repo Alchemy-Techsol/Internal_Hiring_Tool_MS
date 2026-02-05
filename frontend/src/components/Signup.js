@@ -24,6 +24,8 @@ const Signup = () => {
     'TOWER-3 EVEREST',
     'TOWER-4',
     'TOWER-6 KAILASH',
+    'Japan',
+    'USA',
     'Admin',
     'HR HEAD', 
   ];
